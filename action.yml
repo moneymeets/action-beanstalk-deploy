@@ -1,0 +1,58 @@
+name: "Deploy Beanstalk application"
+author: "Marcel Arns <marcel.arns@moneymeets.com>"
+description: "Create Beanstalk application version and update environment"
+inputs:
+  aws_access_key_id:
+    description: "AWS access key"
+    required: true
+  aws_secret_access_key:
+    description: "AWS secret access key"
+    required: true
+  aws_region:
+    description: "AWS region"
+    required: false
+    default: "eu-central-1"
+  version_label:
+    description: "Version label (default: github.sha)"
+    required: false
+    default: ${{ github.sha }}
+  version_description:
+    description: "Version description (default: github.run_number)"
+    required: false
+    default: "GitHub Action #${{ github.run_number }}"
+  build_and_upload_image:
+    description: "Build and upload the docker image"
+    required: true
+  wait_for_deployment:
+    description: "Whether the action should wait for the deployment to finish and log status messages during wait"
+    required: false
+    default: "true"
+  base_path:
+    description: "Base path"
+    required: false
+    default: ${{ github.workspace }}
+  config_path:
+    description: "Config path"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run
+      run: |
+        pip install -r requirements.txt
+        python3 -m action
+      shell: bash
+      env:
+        PYTHONPATH: ${{ github.action_path }}
+
+        AWS_ACCESS_KEY_ID: ${{ inputs.aws_access_key_id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_access_key }}
+        AWS_DEFAULT_REGION: ${{ inputs.aws_region }}
+
+        VERSION_LABEL: ${{ inputs.version_label }}
+        VERSION_DESCRIPTION: ${{ inputs.version_description }}
+        WAIT_FOR_DEPLOYMENT: ${{ inputs.wait_for_deployment }}
+        BASE_PATH: ${{ inputs.base_path }}
+
+        CONFIG_PATH: ${{ inputs.config_path }}
