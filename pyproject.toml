@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "action-beanstalk-deploy"
+version = "0.1.0"
+description = ""
+authors = ["moneymeets <admin@moneymeets.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9.1"
+
+boto3 = "*"
+dataclasses-json = "*"
+
+[tool.poetry.dev-dependencies]
+flake8 = "*"
+flake8-quotes = "*"
+flake8-coding = "*"
+flake8-commas = "*"
+flake8-import-order = "*"
+
+[build-system]
+requires = ["poetry_core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
