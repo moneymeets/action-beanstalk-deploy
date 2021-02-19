@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import base64
 import json
 import logging
 import math
@@ -8,6 +9,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import boto3
@@ -58,14 +60,9 @@ class ConfigFromFile:
     containers: tuple[ContainerConfig, ...]
 
 
-def run_commands(commands: tuple[str, ...]):
-    for command in commands:
-        run_command(command)
-
-
-def run_command(command: str):
+def run_command(command: str, input_data: Optional[str] = None):
     logging.info(command)
-    subprocess.run(command, check=True, shell=True)
+    subprocess.run(command, check=True, shell=True, text=True, input=input_data)
 
 
 def prepare_dockerrun_file(containers: tuple[ContainerConfig, ...], version: str) -> dict[str, ...]:
@@ -132,14 +129,24 @@ def build_image(containers: ContainerConfig, dockerfile: Path, build_path: Path)
 
 
 def upload_image_to_ecr(containers: ContainerConfig, version_label: str):
+    def get_ecr_authorization_data() -> tuple[str, str, str]:
+        account_id = boto3.client("sts").get_caller_identity()["Account"]
+        authorization_data, *_ = boto3.client("ecr").get_authorization_token(
+            registryIds=[account_id],
+        )["authorizationData"]
+
+        user, token = base64.b64decode(authorization_data["authorizationToken"]).decode().split(":")
+
+        return user, token, authorization_data["proxyEndpoint"]
+
     image_destination = containers.get_image_url(version_label)
-    run_commands(
-        (
-            f"docker tag {containers.name}-ci {image_destination}",
-            "$(aws ecr get-login --no-include-email)",
-            f"docker push {image_destination}",
-        ),
-    )
+
+    run_command(f"docker tag {containers.name}-ci {image_destination}")
+
+    login_user, authorization_token, endpoint = get_ecr_authorization_data()
+    run_command(f"docker login -u {login_user} {endpoint} --password-stdin", input_data=authorization_token)
+
+    run_command(f"docker push {image_destination}")
 
 
 def build_and_upload_images(containers: tuple[ContainerConfig, ...], base_path: str, version_label: str):
