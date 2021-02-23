@@ -14,7 +14,9 @@ This step will only be executed if the `build_and_upload_image` key is set in th
 ## Create and upload deployment archive (Dockerrun.aws.json)
 Create `deploy-CommitSHA.zip` and upload it to the specified application version bucket.
 The commit SHA in the filename is the SHA which triggered the workflow (e.g. `796a30eac5a3bb2da4e90d79366f6760e16ac91a`).
-This zip archive contains only the `Dockerrun.aws.json` at this moment.
+This zip archive contains the `Dockerrun.aws.json`, as well as an optional `.ebextensions` directory copied from the path specified in the `ebextensions` key.
+If `ebextensions` is present, only immediate files present in that directory will be copied over to the `.ebextensions` directory, i.e. no files in subdirectories are considered. 
+Containers may contain `mounts`, which are automatically converted to the corresponding `volumes` and `mountPoints` (see below for an example). 
 
 ## Create Beanstalk application version
 This action uses a different Beanstalk application for each environment, e.g. (dev, test, live).
@@ -34,6 +36,7 @@ The default settings are to wait until the deployment process is finished and th
   "application_name": "my-sample-application-dev",
   "environment_name": "sample-application-dev",
   "application_version_bucket": "sample-application-version-bucket-dev",
+  "ebextensions": "ebextensions/dev",
   "containers": [
     {
       "dockerfile": "docker/Dockerfile",
@@ -57,6 +60,7 @@ The default settings are to wait until the deployment process is finished and th
   "application_name": "my-sample-application-test",
   "environment_name": "sample-application-test",
   "application_version_bucket": "sample-application-version-bucket-test",
+  "ebextensions": "ebextensions/test",
   "containers": [
     {
       "dockerfile": "docker/Dockerfile",

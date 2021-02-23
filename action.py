@@ -58,6 +58,7 @@ class ConfigFromFile:
     environment_name: str
     application_version_bucket: str
     containers: tuple[ContainerConfig, ...]
+    ebextensions: Optional[str] = None
 
 
 def run_command(command: str, input_data: Optional[str] = None):
@@ -91,10 +92,15 @@ def prepare_dockerrun_file(containers: tuple[ContainerConfig, ...], version: str
     }
 
 
-def create_deployment_archive(output_file: Path, config: tuple[ContainerConfig, ...], version_label: str):
+def create_deployment_archive(
+        output_file: Path, config: tuple[ContainerConfig, ...], version_label: str, ebextensions: Optional[str]):
     with ZipFile(output_file, "w") as archive:
         data = json.dumps(prepare_dockerrun_file(config, version_label), indent=4)
         archive.writestr("Dockerrun.aws.json", data, compress_type=ZIP_DEFLATED)
+
+        if ebextensions is not None:
+            for file in filter(lambda path: path.is_file(), Path(ebextensions).iterdir()):
+                archive.writestr(f".ebextensions/{file.name}", file.read_bytes(), compress_type=ZIP_DEFLATED)
 
 
 def upload_deployment_archive_to_s3(application_version_bucket: str, deployment_archive: Path):
@@ -110,6 +116,7 @@ def create_and_upload_deployment_archive(
         containers: tuple[ContainerConfig, ...],
         version_label: str,
         application_version_bucket: str,
+        ebextensions: Optional[str],
 ):
     output_path = Path(".build-artifacts")
     output_path.mkdir(exist_ok=True)
@@ -119,6 +126,7 @@ def create_and_upload_deployment_archive(
         output_file=output_file,
         config=containers,
         version_label=version_label,
+        ebextensions=ebextensions,
     )
 
     upload_deployment_archive_to_s3(application_version_bucket, output_file)
@@ -256,6 +264,7 @@ def main(config: tuple[ConfigFromEnv, ConfigFromFile]):
         containers=config_from_file.containers,
         version_label=config_from_env.version_label,
         application_version_bucket=config_from_file.application_version_bucket,
+        ebextensions=config_from_file.ebextensions,
     )
 
     create_beanstalk_application_version(
