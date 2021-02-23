@@ -32,6 +32,9 @@ jobs:
       - name: Linter
         run: poetry run flake8
 
+      - name: Test
+        run: poetry run pytest
+
       - name: Check requirements
         run: |
           poetry export -f requirements.txt -o requirements-ci.txt

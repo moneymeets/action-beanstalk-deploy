@@ -16,6 +16,7 @@ flake8-quotes = "*"
 flake8-coding = "*"
 flake8-commas = "*"
 flake8-import-order = "*"
+pytest = "*"
 
 [build-system]
 requires = ["poetry_core>=1.0.0"]

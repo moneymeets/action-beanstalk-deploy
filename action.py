@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import base64
+import hashlib
 import json
 import logging
 import math
@@ -25,6 +26,14 @@ class PortMapping:
 
 @dataclass_json
 @dataclass(frozen=True)
+class ContainerMount:
+    host_path: str
+    container_path: str
+    read_only: bool
+
+
+@dataclass_json
+@dataclass(frozen=True)
 class ContainerConfig:
     name: str
     dockerfile: str
@@ -32,6 +41,7 @@ class ContainerConfig:
     ports: tuple[PortMapping, ...]
     memory: int = 1024
     links: tuple[str, ...] = ()
+    mounts: tuple[ContainerMount, ...] = ()
 
     def get_image_url(self, version):
         return f"{self.image_base_name}:{version}"
@@ -66,17 +76,37 @@ def run_command(command: str, input_data: Optional[str] = None):
     subprocess.run(command, check=True, shell=True, text=True, input=input_data)
 
 
-def prepare_dockerrun_file(containers: tuple[ContainerConfig, ...], version: str) -> dict[str, ...]:
+def prepare_dockerrun_file(
+        containers: tuple[ContainerConfig, ...],
+        version: str,
+) -> dict[str, ...]:
+    volumes = {
+        mount.host_path
+        for container in containers
+        for mount in container.mounts
+    }
+
+    def volume_id(name: str) -> str:
+        return hashlib.sha1(name.encode()).hexdigest()
+
     return {
         "AWSEBDockerrunVersion": 2,
-        "volumes": [],
+        "volumes": [
+            {
+                "name": volume_id(volume),
+                "host": {
+                    "sourcePath": volume,
+                },
+            }
+            for volume in volumes
+        ],
         "containerDefinitions": [
             {
                 "name": container.name,
                 "image": container.get_image_url(version),
                 "environment": [],
                 "essential": True,
-                "links": container.links,
+                "links": list(container.links),
                 "memoryReservation": container.memory,
                 "portMappings": [
                     {
@@ -85,7 +115,14 @@ def prepare_dockerrun_file(containers: tuple[ContainerConfig, ...], version: str
                     }
                     for port in container.ports
                 ],
-
+                "mountPoints": [
+                    {
+                        "sourceVolume": volume_id(mount.host_path),
+                        "containerPath": mount.container_path,
+                        "readOnly": mount.read_only,
+                    }
+                    for mount in container.mounts
+                ],
             }
             for container in containers
         ],
@@ -93,7 +130,11 @@ def prepare_dockerrun_file(containers: tuple[ContainerConfig, ...], version: str
 
 
 def create_deployment_archive(
-        output_file: Path, config: tuple[ContainerConfig, ...], version_label: str, ebextensions: Optional[str]):
+        output_file: Path,
+        config: tuple[ContainerConfig, ...],
+        version_label: str,
+        ebextensions: Optional[str],
+):
     with ZipFile(output_file, "w") as archive:
         data = json.dumps(prepare_dockerrun_file(config, version_label), indent=4)
         archive.writestr("Dockerrun.aws.json", data, compress_type=ZIP_DEFLATED)
