@@ -33,7 +33,7 @@ jobs:
         run: poetry run flake8
 
       - name: Test
-        run: poetry run nosetests
+        run: poetry run pytest
 
       - name: Check requirements
         run: |
