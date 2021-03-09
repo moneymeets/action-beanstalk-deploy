@@ -141,7 +141,7 @@ def create_deployment_archive(
 
         if ebextensions is not None:
             for file in filter(lambda path: path.is_file(), Path(ebextensions).iterdir()):
-                archive.writestr(f".ebextensions/{file.stem}", file.read_bytes(), compress_type=ZIP_DEFLATED)
+                archive.writestr(f".ebextensions/{file.name}", file.read_bytes(), compress_type=ZIP_DEFLATED)
 
 
 def upload_deployment_archive_to_s3(application_version_bucket: str, deployment_archive: Path):
