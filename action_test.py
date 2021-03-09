@@ -42,7 +42,7 @@ class MountsTest(TestCase):
                     "image": f"{self.IMAGE_NAME}:{app_version}",
                     "environment": [],
                     "essential": True,
-                    "links": (),
+                    "links": [],
                     "memoryReservation": 1024,
                     "portMappings": [],
                     "mountPoints": [

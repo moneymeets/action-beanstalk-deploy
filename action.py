@@ -106,7 +106,7 @@ def prepare_dockerrun_file(
                 "image": container.get_image_url(version),
                 "environment": [],
                 "essential": True,
-                "links": container.links,
+                "links": list(container.links),
                 "memoryReservation": container.memory,
                 "portMappings": [
                     {
