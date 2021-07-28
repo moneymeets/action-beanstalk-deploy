@@ -77,14 +77,10 @@ def run_command(command: str, input_data: Optional[str] = None):
 
 
 def prepare_dockerrun_file(
-        containers: tuple[ContainerConfig, ...],
-        version: str,
+    containers: tuple[ContainerConfig, ...],
+    version: str,
 ) -> dict[str, ...]:
-    volumes = {
-        mount.host_path
-        for container in containers
-        for mount in container.mounts
-    }
+    volumes = {mount.host_path for container in containers for mount in container.mounts}
 
     def volume_id(name: str) -> str:
         return hashlib.sha1(name.encode()).hexdigest()
@@ -130,10 +126,10 @@ def prepare_dockerrun_file(
 
 
 def create_deployment_archive(
-        output_file: Path,
-        config: tuple[ContainerConfig, ...],
-        version_label: str,
-        ebextensions: Optional[str],
+    output_file: Path,
+    config: tuple[ContainerConfig, ...],
+    version_label: str,
+    ebextensions: Optional[str],
 ):
     with ZipFile(output_file, "w") as archive:
         data = json.dumps(prepare_dockerrun_file(config, version_label), indent=4)
@@ -153,11 +149,11 @@ def upload_deployment_archive_to_s3(application_version_bucket: str, deployment_
 
 
 def create_and_upload_deployment_archive(
-        deployment_archive: str,
-        containers: tuple[ContainerConfig, ...],
-        version_label: str,
-        application_version_bucket: str,
-        ebextensions: Optional[str],
+    deployment_archive: str,
+    containers: tuple[ContainerConfig, ...],
+    version_label: str,
+    application_version_bucket: str,
+    ebextensions: Optional[str],
 ):
     output_path = Path(".build-artifacts")
     output_path.mkdir(exist_ok=True)
@@ -231,19 +227,21 @@ def get_deployment_status(environment_name: str) -> dict[str, ...]:
 
 
 def is_version_deployed(environment_name: str, version: str, application_name: str) -> bool:
-    return bool(boto3.client("elasticbeanstalk").describe_environments(
-        ApplicationName=application_name,
-        VersionLabel=version,
-        EnvironmentNames=[environment_name],
-    )["Environments"])
+    return bool(
+        boto3.client("elasticbeanstalk").describe_environments(
+            ApplicationName=application_name,
+            VersionLabel=version,
+            EnvironmentNames=[environment_name],
+        )["Environments"],
+    )
 
 
 def wait_until_deployment_successful_finished(
-        application_name: str,
-        environment_name: str,
-        version_label: str,
-        wait_timeout: int = 20 * 60,
-        wait_time_step: int = 8,
+    application_name: str,
+    environment_name: str,
+    version_label: str,
+    wait_timeout: int = 20 * 60,
+    wait_time_step: int = 8,
 ):
     def wait_for_update_is_ready(timeout: int, wait_time: int):
         steps = int(math.ceil(timeout / wait_time))
@@ -282,12 +280,15 @@ def prepare_config() -> tuple[ConfigFromEnv, ConfigFromFile]:
     def check_bool(value: str) -> bool:
         return False if value in ("", "0", "False", "false") else True
 
-    return ConfigFromEnv(
-        version_label=os.environ["VERSION_LABEL"],
-        version_description=os.environ["VERSION_DESCRIPTION"],
-        wait_for_deployment=check_bool(os.environ["WAIT_FOR_DEPLOYMENT"]),
-        base_path=os.environ["BASE_PATH"],
-    ), ConfigFromFile.from_json(Path(os.environ["CONFIG_PATH"]).read_bytes())
+    return (
+        ConfigFromEnv(
+            version_label=os.environ["VERSION_LABEL"],
+            version_description=os.environ["VERSION_DESCRIPTION"],
+            wait_for_deployment=check_bool(os.environ["WAIT_FOR_DEPLOYMENT"]),
+            base_path=os.environ["BASE_PATH"],
+        ),
+        ConfigFromFile.from_json(Path(os.environ["CONFIG_PATH"]).read_bytes()),
+    )
 
 
 def main(config: tuple[ConfigFromEnv, ConfigFromFile]):
