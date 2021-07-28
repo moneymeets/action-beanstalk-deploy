@@ -58,10 +58,7 @@ class MountsTest(TestCase):
         }
 
     def _test_single_host_path(self, app_version: str, *container_mounts: str):
-        containers = tuple(
-            self._create_container_config(mount)
-            for mount in container_mounts
-        )
+        containers = tuple(self._create_container_config(mount) for mount in container_mounts)
 
         self.assertDictEqual(
             prepare_dockerrun_file(containers, app_version),

@@ -1,3 +1,4 @@
 .build-artifacts
-.idea
+.idea/*
+!.idea/watcherTasks.xml
 __pycache__
