@@ -11,18 +11,24 @@ boto3 = "*"
 dataclasses-json = "*"
 
 [tool.poetry.dev-dependencies]
+pytest = "*"
+
 black = "*"
 flake8 = "*"
 flake8-black = "*"
-flake8-quotes = "*"
 flake8-coding = "*"
 flake8-commas = "*"
-flake8-import-order = "*"
-pytest = "*"
+flake8-isort = "*"
+flake8-quotes = "*"
+isort = {extras = ["pyproject"], version = "*"}
 
 [tool.black]
 line-length = 120
 target-version = ["py39"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
 
 [build-system]
 requires = ["poetry_core>=1.0.0"]
