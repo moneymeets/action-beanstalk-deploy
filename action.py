@@ -200,7 +200,15 @@ def build_and_upload_images(containers: tuple[ContainerConfig, ...], base_path: 
         upload_image_to_ecr(container, version_label)
 
 
-def create_beanstalk_application_version(app: str, version: str, description: str, bucket: str, archive: str):
+def create_beanstalk_application_version(
+    app: str,
+    version: str,
+    description: str,
+    bucket: str,
+    archive: str,
+    max_retries: int = 20,
+    wait_time: int = 1,
+):
     boto3.client("elasticbeanstalk").create_application_version(
         ApplicationName=app,
         VersionLabel=version,
@@ -211,6 +219,19 @@ def create_beanstalk_application_version(app: str, version: str, description: st
         },
         Process=True,
     )
+
+    retries = 0
+    while retries < max_retries:
+        status = get_application_version(app, version)
+
+        logging.info(f"Step {retries + 1} of {max_retries}. Status is {status['Status']}")
+        if status["Status"] == "PROCESSED":
+            return
+
+        time.sleep(wait_time)
+        retries += 1
+
+    raise TimeoutError("Application Version not finished until timeout")
 
 
 def get_deployment_status(environment_name: str) -> dict[str, ...]:
@@ -224,6 +245,14 @@ def get_deployment_status(environment_name: str) -> dict[str, ...]:
             "Status",
         ],
     )
+
+
+def get_application_version(app: str, version: str) -> dict[str, ...]:
+    return boto3.client("elasticbeanstalk").describe_application_versions(
+        ApplicationName=app,
+        VersionLabels=[version],
+        MaxRecords=1,
+    )["ApplicationVersions"][0]
 
 
 def is_version_deployed(environment_name: str, version: str, application_name: str) -> bool:
