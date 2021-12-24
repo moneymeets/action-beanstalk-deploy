@@ -13,8 +13,10 @@ jobs:
       - name: Setup Python + Poetry
         uses: moneymeets/action-setup-python-poetry@master
 
-      - name: Linter
-        run: poetry run flake8
+      - name: Run linter
+        run: |
+          find . -name '*.py' | xargs poetry run add-trailing-comma --py36-plus
+          poetry run flake8
 
       - name: Test
         run: poetry run pytest
