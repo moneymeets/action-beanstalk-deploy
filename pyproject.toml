@@ -5,26 +5,27 @@ description = ""
 authors = ["moneymeets <admin@moneymeets.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.9.1"
+python = "^3.10"
 
 boto3 = "*"
 dataclasses-json = "*"
 
 [tool.poetry.dev-dependencies]
 pytest = "*"
+pytest-cov = "*"
 
+add-trailing-comma = "*"
 black = "*"
 flake8 = "*"
 flake8-black = "*"
 flake8-coding = "*"
-flake8-commas = "*"
 flake8-isort = "*"
 flake8-quotes = "*"
 isort = {extras = ["pyproject"], version = "*"}
 
 [tool.black]
 line-length = 120
-target-version = ["py39"]
+target-version = ["py310"]
 
 [tool.isort]
 profile = "black"
