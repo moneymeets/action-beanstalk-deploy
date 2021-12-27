@@ -222,10 +222,15 @@ def create_beanstalk_application_version(
 
     retries = 0
     while retries < max_retries:
-        status = get_application_version(app, version)
+        application_versions = get_application_versions(app, version)
+        status = "UNAVAILABLE"
 
-        logging.info(f"Step {retries + 1} of {max_retries}. Status is {status['Status']}")
-        if status["Status"] == "PROCESSED":
+        if application_versions:
+            application_version, *_ = application_versions
+            status = application_version["Status"]
+
+        logging.info(f"Step {retries + 1} of {max_retries}. Status is {status}")
+        if status == "PROCESSED":
             return
 
         time.sleep(wait_time)
@@ -247,12 +252,12 @@ def get_deployment_status(environment_name: str) -> dict[str, ...]:
     )
 
 
-def get_application_version(app: str, version: str) -> dict[str, ...]:
+def get_application_versions(app: str, version: str) -> dict[str, ...]:
     return boto3.client("elasticbeanstalk").describe_application_versions(
         ApplicationName=app,
         VersionLabels=[version],
         MaxRecords=1,
-    )["ApplicationVersions"][0]
+    )["ApplicationVersions"]
 
 
 def is_version_deployed(environment_name: str, version: str, application_name: str) -> bool:
