@@ -1,7 +1,9 @@
 import hashlib
 from unittest import TestCase
+from unittest.mock import patch
 
-from action import ContainerConfig, ContainerMount, prepare_dockerrun_file
+import action
+from action import ContainerConfig, ContainerMount, create_beanstalk_application_version, prepare_dockerrun_file
 
 
 class MountsTest(TestCase):
@@ -70,3 +72,42 @@ class MountsTest(TestCase):
 
     def test_host_path_reuse(self):
         self._test_single_host_path("other-app-version", "/opt/data", "/opt/other-data")
+
+
+@patch.object(action, "boto3")
+class ApplicationVersionTest(TestCase):
+    @patch.object(
+        action,
+        "get_application_versions",
+        side_effect=[
+            [],
+            [{"Status": "PROCESSING"}],
+            [{"Status": "PROCESSED"}],
+        ],
+    )
+    def test_successful_response(self, mock_get_application_versions, *_):
+        create_beanstalk_application_version(
+            app="APP",
+            version="abc12345",
+            description="",
+            bucket="bucket",
+            archive="deploy-abc12345.zip",
+        )
+        self.assertEqual(mock_get_application_versions.call_count, 3)
+
+    @patch.object(
+        action,
+        "get_application_versions",
+        side_effect=[[{"Status": "PROCESSING"}] for i in range(4)],
+    )
+    def test_timeout_error(self, *_):
+        with self.assertRaises(TimeoutError):
+            create_beanstalk_application_version(
+                app="APP",
+                version="abc12345",
+                description="",
+                bucket="bucket",
+                archive="deploy-abc12345.zip",
+                max_retries=3,
+                wait_time=0,
+            )
