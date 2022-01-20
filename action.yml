@@ -38,19 +38,16 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.10'
+    - name: Setup Python + Poetry
+      uses: moneymeets/action-setup-python-poetry@master
 
     - name: Run
       run: |
-        pip install -r ${{ github.action_path }}/requirements.txt
-        python3 -m action
+        poetry install --no-dev
+        poetry run python action.py
       shell: bash
+      working-directory: ${{ github.action_path }}
       env:
-        PYTHONPATH: ${{ github.action_path }}
-
         AWS_ACCESS_KEY_ID: ${{ inputs.aws_access_key_id }}
         AWS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_access_key }}
         AWS_DEFAULT_REGION: ${{ inputs.aws_region }}
@@ -61,3 +58,4 @@ runs:
         BASE_PATH: ${{ inputs.base_path }}
 
         CONFIG_PATH: ${{ inputs.config_path }}
+        PYTHONUNBUFFERED: "1"
