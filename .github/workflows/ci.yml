@@ -19,4 +19,4 @@ jobs:
           poetry run flake8
 
       - name: Test
-        run: poetry run pytest --cov --cov-branch --cov-fail-under=50
+        run: poetry run pytest --cov --cov-branch --cov-fail-under=85
