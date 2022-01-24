@@ -19,9 +19,4 @@ jobs:
           poetry run flake8
 
       - name: Test
-        run: poetry run pytest --cov --cov-branch --cov-fail-under=50
-
-      - name: Check requirements
-        run: |
-          poetry export -f requirements.txt -o requirements-ci.txt
-          diff -u requirements.txt requirements-ci.txt
+        run: poetry run pytest --cov --cov-branch --cov-fail-under=85

@@ -1,16 +1,12 @@
-#!/usr/bin/env python3
-
-import base64
-import hashlib
 import json
 import logging
-import math
 import os
-import subprocess
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import boto3
@@ -19,349 +15,253 @@ from dataclasses_json import dataclass_json
 
 @dataclass_json
 @dataclass(frozen=True)
-class PortMapping:
-    host: int
-    container: int
-
-
-@dataclass_json
-@dataclass(frozen=True)
-class ContainerMount:
-    host_path: str
-    container_path: str
-    read_only: bool
-
-
-@dataclass_json
-@dataclass(frozen=True)
-class ContainerConfig:
-    name: str
-    dockerfile: str
-    image_base_name: str
-    ports: tuple[PortMapping, ...]
-    memory: int = 1024
-    links: tuple[str, ...] = ()
-    mounts: tuple[ContainerMount, ...] = ()
-
-    def get_image_url(self, version):
-        return f"{self.image_base_name}:{version}"
-
-
-@dataclass_json
-@dataclass(frozen=True)
-class ConfigFromEnv:
+class Config:
+    application_name: str
+    description: str
+    docker_compose_path: Path
+    environment_name: str
+    platform_hooks_path: Path
+    region: str
     version_label: str
-    version_description: str
-    wait_for_deployment: bool
-    base_path: str
 
     @property
-    def deployment_archive(self):
-        return f"deploy-{self.version_label}.zip"
+    def application_version_bucket_key(self):
+        return f"{self.application_name}/{self.version_label}.zip"
+
+    @property
+    def application_version_bucket_name(self):
+        return f"elasticbeanstalk-{self.region}-{boto3.client('sts').get_caller_identity().get('Account')}"
 
 
-@dataclass_json
 @dataclass(frozen=True)
-class ConfigFromFile:
-    build_and_upload_image: bool
-    application_name: str
-    environment_name: str
-    application_version_bucket: str
-    containers: tuple[ContainerConfig, ...]
-    ebextensions: Optional[str] = None
+class BeanstalkApplication:
+    name: str
 
 
-def run_command(command: str, input_data: Optional[str] = None):
-    logging.info(command)
-    subprocess.run(command, check=True, shell=True, text=True, input=input_data)
+@dataclass(frozen=True)
+class BeanstalkEnvironment:
+    application: BeanstalkApplication
+    name: str
 
+    def get_health(self) -> dict:
+        return boto3.client("elasticbeanstalk").describe_environment_health(
+            EnvironmentName=self.name,
+            AttributeNames=["HealthStatus", "InstancesHealth", "Causes", "Color", "Status"],
+        )
 
-def prepare_dockerrun_file(
-    containers: tuple[ContainerConfig, ...],
-    version: str,
-) -> dict[str, ...]:
-    volumes = {mount.host_path for container in containers for mount in container.mounts}
+    def get_events(self, last_event_time: datetime) -> Sequence[dict]:
+        return tuple(
+            reversed(
+                boto3.client("elasticbeanstalk").describe_events(
+                    ApplicationName=self.application.name,
+                    EnvironmentName=self.name,
+                    StartTime=last_event_time,
+                )["Events"],
+            ),
+        )
 
-    def volume_id(name: str) -> str:
-        return hashlib.sha1(name.encode()).hexdigest()
+    def wait_for_update_is_ready_and_get_health(
+        self,
+        start_time: datetime,
+        polling_max_steps: int,
+        polling_interval: timedelta,
+    ) -> dict:
+        step = 0
+        last_event_time = start_time
+        while step < polling_max_steps:
+            events = self.get_events(last_event_time)
+            health = self.get_health()
 
-    return {
-        "AWSEBDockerrunVersion": 2,
-        "volumes": [
-            {
-                "name": volume_id(volume),
-                "host": {
-                    "sourcePath": volume,
-                },
-            }
-            for volume in volumes
-        ],
-        "containerDefinitions": [
-            {
-                "name": container.name,
-                "image": container.get_image_url(version),
-                "environment": [],
-                "essential": True,
-                "links": list(container.links),
-                "memoryReservation": container.memory,
-                "portMappings": [
-                    {
-                        "hostPort": port.host,
-                        "containerPort": port.container,
-                    }
-                    for port in container.ports
-                ],
-                "mountPoints": [
-                    {
-                        "sourceVolume": volume_id(mount.host_path),
-                        "containerPath": mount.container_path,
-                        "readOnly": mount.read_only,
-                    }
-                    for mount in container.mounts
-                ],
-            }
-            for container in containers
-        ],
-    }
+            logging.info(f"Step {step + 1} of {polling_max_steps}. Status is {health['Status']}")
 
+            # Log all events in order they occur beginning at the last event time
+            for event in events:
+                logging.info(event["Message"])
+                last_event_time = event["EventDate"]
 
-def create_deployment_archive(
-    output_file: Path,
-    config: tuple[ContainerConfig, ...],
-    version_label: str,
-    ebextensions: Optional[str],
-):
-    with ZipFile(output_file, "w") as archive:
-        data = json.dumps(prepare_dockerrun_file(config, version_label), indent=4)
-        archive.writestr("Dockerrun.aws.json", data, compress_type=ZIP_DEFLATED)
+            if health["Status"] == "Ready":
+                return health
 
-        if ebextensions is not None:
-            for file in filter(lambda path: path.is_file(), Path(ebextensions).iterdir()):
-                archive.writestr(f".ebextensions/{file.name}", file.read_bytes(), compress_type=ZIP_DEFLATED)
-
-
-def upload_deployment_archive_to_s3(application_version_bucket: str, deployment_archive: Path):
-    boto3.client("s3").put_object(
-        Bucket=application_version_bucket,
-        Body=deployment_archive.read_bytes(),
-        Key=deployment_archive.name,
-    )
-
-
-def create_and_upload_deployment_archive(
-    deployment_archive: str,
-    containers: tuple[ContainerConfig, ...],
-    version_label: str,
-    application_version_bucket: str,
-    ebextensions: Optional[str],
-):
-    output_path = Path(".build-artifacts")
-    output_path.mkdir(exist_ok=True)
-    output_file = output_path / deployment_archive
-
-    create_deployment_archive(
-        output_file=output_file,
-        config=containers,
-        version_label=version_label,
-        ebextensions=ebextensions,
-    )
-
-    upload_deployment_archive_to_s3(application_version_bucket, output_file)
-
-
-def build_image(containers: ContainerConfig, dockerfile: Path, build_path: Path):
-    run_command(f"docker build -t {containers.name}-ci -f {build_path / dockerfile} {build_path}")
-
-
-def upload_image_to_ecr(containers: ContainerConfig, version_label: str):
-    def get_ecr_authorization_data() -> tuple[str, str, str]:
-        account_id = boto3.client("sts").get_caller_identity()["Account"]
-        authorization_data, *_ = boto3.client("ecr").get_authorization_token(
-            registryIds=[account_id],
-        )["authorizationData"]
-
-        user, token = base64.b64decode(authorization_data["authorizationToken"]).decode().split(":")
-
-        return user, token, authorization_data["proxyEndpoint"]
-
-    image_destination = containers.get_image_url(version_label)
-
-    run_command(f"docker tag {containers.name}-ci {image_destination}")
-
-    login_user, authorization_token, endpoint = get_ecr_authorization_data()
-    run_command(f"docker login -u {login_user} {endpoint} --password-stdin", input_data=authorization_token)
-
-    run_command(f"docker push {image_destination}")
-
-
-def build_and_upload_images(containers: tuple[ContainerConfig, ...], base_path: str, version_label: str):
-    for container in containers:
-        build_image(container, Path(container.dockerfile), Path(base_path))
-        upload_image_to_ecr(container, version_label)
-
-
-def create_beanstalk_application_version(
-    app: str,
-    version: str,
-    description: str,
-    bucket: str,
-    archive: str,
-    max_retries: int = 20,
-    wait_time: int = 1,
-):
-    boto3.client("elasticbeanstalk").create_application_version(
-        ApplicationName=app,
-        VersionLabel=version,
-        Description=description,
-        SourceBundle={
-            "S3Bucket": bucket,
-            "S3Key": archive,
-        },
-        Process=True,
-    )
-
-    retries = 0
-    while retries < max_retries:
-        application_versions = get_application_versions(app, version)
-        status = "UNAVAILABLE"
-
-        if application_versions:
-            application_version, *_ = application_versions
-            status = application_version["Status"]
-
-        logging.info(f"Step {retries + 1} of {max_retries}. Status is {status}")
-        if status == "PROCESSED":
-            return
-
-        time.sleep(wait_time)
-        retries += 1
-
-    raise TimeoutError("Application Version not finished until timeout")
-
-
-def get_deployment_status(environment_name: str) -> dict[str, ...]:
-    return boto3.client("elasticbeanstalk").describe_environment_health(
-        EnvironmentName=environment_name,
-        AttributeNames=[
-            "HealthStatus",
-            "InstancesHealth",
-            "Causes",
-            "Color",
-            "Status",
-        ],
-    )
-
-
-def get_application_versions(app: str, version: str) -> dict[str, ...]:
-    return boto3.client("elasticbeanstalk").describe_application_versions(
-        ApplicationName=app,
-        VersionLabels=[version],
-        MaxRecords=1,
-    )["ApplicationVersions"]
-
-
-def is_version_deployed(environment_name: str, version: str, application_name: str) -> bool:
-    return bool(
-        boto3.client("elasticbeanstalk").describe_environments(
-            ApplicationName=application_name,
-            VersionLabel=version,
-            EnvironmentNames=[environment_name],
-        )["Environments"],
-    )
-
-
-def wait_until_deployment_successful_finished(
-    application_name: str,
-    environment_name: str,
-    version_label: str,
-    wait_timeout: int = 20 * 60,
-    wait_time_step: int = 8,
-):
-    def wait_for_update_is_ready(timeout: int, wait_time: int):
-        steps = int(math.ceil(timeout / wait_time))
-        for step in range(steps):
-            deployment_status = get_deployment_status(environment_name)
-
-            logging.info(f"Step {step} of {steps}. Status is {deployment_status['Status']}")
-            if deployment_status["Status"] == "Ready":
-                return deployment_status
-
-            time.sleep(wait_time)
+            time.sleep(polling_interval.total_seconds())
+            step += 1
 
         raise TimeoutError("Deployment not finished until timeout")
 
-    status = wait_for_update_is_ready(wait_timeout, wait_time_step)
 
-    if status["Color"] != "Green":
-        logging.warning(json.dumps(status, indent=4))
-        raise RuntimeError(f"Deployment of '{version_label}' failed!")
+@dataclass(frozen=True)
+class DeploymentArchive:
+    version_label: str
+    bucket_name: str
+    bucket_key: str
 
-    if not is_version_deployed(environment_name, version_label, application_name):
-        raise RuntimeError(f"Deployment of '{version_label}' to '{environment_name}' failed!")
+    @classmethod
+    def create(
+        cls,
+        docker_compose_path: Path,
+        platform_hooks_path: Optional[Path],
+        version_label: str,
+        bucket_name: str,
+        bucket_key: str,
+    ) -> "DeploymentArchive":
+        def create_zip() -> bytes:
+            output_data = BytesIO()
+            with ZipFile(output_data, "w", compression=ZIP_DEFLATED) as archive:
+                archive.writestr(
+                    "docker-compose.yml",
+                    docker_compose_path.read_text().replace("${IMAGE_TAG}", version_label),
+                )
+                if platform_hooks_path is not None:
+                    for file in filter(lambda path: path.is_file(), platform_hooks_path.glob("**/*")):
+                        archive.write(file, arcname=file.relative_to(platform_hooks_path))
 
-    logging.info("Deployment successful")
+            logging.info("Deployment archive created")
+            output_data.seek(0)
+            return output_data.getvalue()
+
+        def upload_zip(content: bytes) -> DeploymentArchive:
+            boto3.client("s3").put_object(Bucket=bucket_name, Body=content, Key=bucket_key)
+            logging.info(f"Deployment archive uploaded to s3://{bucket_name}/{bucket_key}")
+            return DeploymentArchive(version_label=version_label, bucket_name=bucket_name, bucket_key=bucket_key)
+
+        return upload_zip(create_zip())
 
 
-def update_beanstalk_environment(application_name: str, environment_name: str, version_label: str):
-    boto3.client("elasticbeanstalk").update_environment(
-        ApplicationName=application_name,
-        EnvironmentName=environment_name,
-        VersionLabel=version_label,
-    )
+@dataclass(frozen=True)
+class ApplicationVersion:
+    application: BeanstalkApplication
+    version_label: str
+    status: str
 
+    @classmethod
+    def get(cls, application: BeanstalkApplication, version_label: str) -> Optional["ApplicationVersion"]:
+        versions = boto3.client("elasticbeanstalk").describe_application_versions(
+            ApplicationName=application.name,
+            VersionLabels=[version_label],
+            MaxRecords=1,
+        )["ApplicationVersions"]
 
-def prepare_config() -> tuple[ConfigFromEnv, ConfigFromFile]:
-    def check_bool(value: str) -> bool:
-        return False if value in ("", "0", "False", "false") else True
+        if not versions:
+            return None
 
-    return (
-        ConfigFromEnv(
-            version_label=os.environ["VERSION_LABEL"],
-            version_description=os.environ["VERSION_DESCRIPTION"],
-            wait_for_deployment=check_bool(os.environ["WAIT_FOR_DEPLOYMENT"]),
-            base_path=os.environ["BASE_PATH"],
-        ),
-        ConfigFromFile.from_json(Path(os.environ["CONFIG_PATH"]).read_bytes()),
-    )
-
-
-def main(config: tuple[ConfigFromEnv, ConfigFromFile]):
-    config_from_env, config_from_file = config
-
-    if config_from_file.build_and_upload_image:
-        build_and_upload_images(
-            containers=config_from_file.containers,
-            base_path=config_from_env.base_path,
-            version_label=config_from_env.version_label,
+        (version,) = versions
+        return ApplicationVersion(
+            application=BeanstalkApplication(version["ApplicationName"]),
+            version_label=version["VersionLabel"],
+            status=version["Status"],
         )
 
-    create_and_upload_deployment_archive(
-        deployment_archive=config_from_env.deployment_archive,
-        containers=config_from_file.containers,
-        version_label=config_from_env.version_label,
-        application_version_bucket=config_from_file.application_version_bucket,
-        ebextensions=config_from_file.ebextensions,
+    @classmethod
+    def create(
+        cls,
+        application: BeanstalkApplication,
+        description: str,
+        deployment_archive: DeploymentArchive,
+        polling_max_steps: int,
+        polling_interval: timedelta,
+    ):
+        version_label = deployment_archive.version_label
+
+        boto3.client("elasticbeanstalk").create_application_version(
+            ApplicationName=application.name,
+            VersionLabel=version_label,
+            Description=description,
+            SourceBundle={
+                "S3Bucket": deployment_archive.bucket_name,
+                "S3Key": deployment_archive.bucket_key,
+            },
+            Process=True,
+        )
+
+        logging.info("Beanstalk application version created")
+
+        def wait_until_created():
+            step = 0
+            while step < polling_max_steps:
+                application_version = cls.get(application, version_label)
+                status = "UNAVAILABLE" if application_version is None else application_version.status
+
+                logging.info(f"Step {step + 1} of {polling_max_steps}. Status is {status}")
+                if status == "PROCESSED":
+                    return application_version
+
+                time.sleep(polling_interval.total_seconds())
+                step += 1
+
+            raise TimeoutError("Application Version creation not finished until timeout")
+
+        return wait_until_created()
+
+    def is_active_in_environment(self, environment: BeanstalkEnvironment) -> bool:
+        return bool(
+            boto3.client("elasticbeanstalk").describe_environments(
+                ApplicationName=self.application.name,
+                VersionLabel=self.version_label,
+                EnvironmentNames=[environment.name],
+            )["Environments"],
+        )
+
+    def deploy_to_environment(
+        self,
+        environment: BeanstalkEnvironment,
+        polling_max_steps: int = 150,
+        polling_interval: timedelta = timedelta(seconds=8),
+    ):
+        assert environment.application == self.application
+
+        boto3.client("elasticbeanstalk").update_environment(
+            ApplicationName=self.application.name,
+            EnvironmentName=environment.name,
+            VersionLabel=self.version_label,
+        )
+
+        start_time = datetime.utcnow()
+        health = environment.wait_for_update_is_ready_and_get_health(
+            start_time,
+            polling_max_steps=polling_max_steps,
+            polling_interval=polling_interval,
+        )
+
+        if health["Color"] != "Green" or not self.is_active_in_environment(environment):
+            logging.warning(json.dumps(health, indent=4))
+            raise RuntimeError(f"Deployment of '{self}' to '{environment}' failed!")
+
+
+def get_or_create_beanstalk_application_version(
+    application: BeanstalkApplication,
+    config: Config,
+    polling_max_steps: int = 20,
+    polling_interval: timedelta = timedelta(seconds=1),
+) -> ApplicationVersion:
+    version_label = config.version_label
+
+    application_version = ApplicationVersion.get(application, version_label)
+
+    if application_version is not None:
+        logging.info(f"Application version {version_label} already exist")
+        return application_version
+
+    return ApplicationVersion.create(
+        application=application,
+        description=config.description,
+        deployment_archive=DeploymentArchive.create(
+            docker_compose_path=config.docker_compose_path,
+            platform_hooks_path=config.platform_hooks_path,
+            version_label=version_label,
+            bucket_name=config.application_version_bucket_name,
+            bucket_key=config.application_version_bucket_key,
+        ),
+        polling_max_steps=polling_max_steps,
+        polling_interval=polling_interval,
     )
 
-    create_beanstalk_application_version(
-        app=config_from_file.application_name,
-        version=config_from_env.version_label,
-        description=config_from_env.version_description,
-        bucket=config_from_file.application_version_bucket,
-        archive=config_from_env.deployment_archive,
-    )
 
-    update_beanstalk_environment(
-        application_name=config_from_file.application_name,
-        environment_name=config_from_file.environment_name,
-        version_label=config_from_env.version_label,
-    )
+def main(config: Config):
+    application = BeanstalkApplication(config.application_name)
+    environment = BeanstalkEnvironment(application, config.environment_name)
 
-    wait_until_deployment_successful_finished(
-        application_name=config_from_file.application_name,
-        environment_name=config_from_file.environment_name,
-        version_label=config_from_env.version_label,
-    )
+    application_version = get_or_create_beanstalk_application_version(application, config)
+
+    application_version.deploy_to_environment(environment)
 
 
 if __name__ == "__main__":
@@ -372,4 +272,14 @@ if __name__ == "__main__":
     )
     logger = logging.getLogger(__file__)
 
-    main(config=prepare_config())
+    main(
+        Config(
+            application_name=os.environ["APPLICATION_NAME"],
+            description=os.environ["VERSION_DESCRIPTION"],
+            docker_compose_path=Path(os.environ["DOCKER_COMPOSE_PATH"]),
+            environment_name=os.environ["ENVIRONMENT_NAME"],
+            platform_hooks_path=Path(os.environ["PLATFORM_HOOKS_PATH"]),
+            region=os.environ["REGION"],
+            version_label=os.environ["VERSION_LABEL"],
+        ),
+    )

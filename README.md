@@ -1,141 +1,80 @@
 # action-beanstalk-deploy
+
 GitHub action for AWS Elastic Beanstalk deployment
 
-
 # Introduction
-This action manages a full Beanstalk environment update. The whole steps are listed below:
 
-## Build and upload docker images
-This step builds docker images, given by a list of container configurations.
-The config file will be read from a config file, the path can be set with `config_path`.
-An example of the configuration file is shown below.
-This step will only be executed if the `build_and_upload_image` key is set in the configuration file.
+This action creates or reuses a Beanstalk application version and triggers the environment update.
 
-## Create and upload deployment archive (Dockerrun.aws.json)
-Create `deploy-CommitSHA.zip` and upload it to the specified application version bucket.
-The commit SHA in the filename is the SHA which triggered the workflow (e.g. `796a30eac5a3bb2da4e90d79366f6760e16ac91a`).
-This zip archive contains the `Dockerrun.aws.json`, as well as an optional `.ebextensions` directory copied from the path specified in the `ebextensions` key.
-If `ebextensions` is present, only immediate files present in that directory will be copied over to the `.ebextensions` directory, i.e. no files in subdirectories are considered.
-Containers may contain `mounts`, which are automatically converted to the corresponding `volumes` and `mountPoints` (see below for an example). 
+## Prerequisites
 
-## Create Beanstalk application version
-This action uses a different Beanstalk application for each environment, e.g. (dev, test, live).
+* existing docker image in your docker registry
+* docker-compose.yml with `${IMAGE_TAG}` variable as tag
+* optional: directory with custom platform hooks
 
-## Update Beanstalk environment
-Update the given Beanstalk environment with the given version label, which was created before.
+## Platform hooks
 
-## Wait until the deployment is finished
-The default settings are to wait until the deployment process is finished and the Beanstalk environment is in ready and healthy state.
+You can provide custom platform hooks, by specifying the `platform_hooks_path` key.
+Example of the directory structure:
 
-
-# Config example
-`dev.json`:
-```json
-{
-  "build_and_upload_image": true,
-  "application_name": "my-sample-application-dev",
-  "environment_name": "sample-application-dev",
-  "application_version_bucket": "sample-application-version-bucket-dev",
-  "ebextensions": "ebextensions/dev",
-  "containers": [
-    {
-      "dockerfile": "docker/Dockerfile",
-      "name": "sample-application",
-      "image_base_name": "YourAwsAccountId.dkr.ecr.YourAwsRegion.amazonaws.com/your-ecr-repository",
-      "ports": [
-        {
-          "host": 80,
-          "container": 80
-        }
-      ]
-    }
-  ]
-}
+```
+.ebextensions/
+    config.config
+.platform/
+    hooks/
+      prebuild/
+        mount.sh
+    ...
 ```
 
-`test.json`:
-```json
-{
-  "build_and_upload_image": false,
-  "application_name": "my-sample-application-test",
-  "environment_name": "sample-application-test",
-  "application_version_bucket": "sample-application-version-bucket-test",
-  "ebextensions": "ebextensions/test",
-  "containers": [
-    {
-      "dockerfile": "docker/Dockerfile",
-      "name": "sample-application",
-      "image_base_name": "YourAwsAccountId.dkr.ecr.YourAwsRegion.amazonaws.com/your-ecr-repository",
-      "ports": [
-        {
-          "host": 80,
-          "container": 80
-        }
-      ],
-      "mounts": [
-        {
-          "host_path": "/var/my-sample-application-test/data",
-          "container_path": "/opt/data",
-          "read_only": false
-        }
-      ]
-    }
-  ]
-}
-```
-
-# Defaults
-Variable | Default
----------|--------
-`aws_region` | `eu-central-1`
-`version_label` | `${{ github.sha }}`
-`version_description` | `"GitHub Action #${{ github.run_number }}"`
-`wait_for_deployment` | `true`
-`base_path` | `${{ github.workspace }}`
+For more detailed information about platform hooks, see: https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/platforms-linux-extend.html
 
 # Usage
 
 See [action.yml](action.yml).
 
 Basic (with default values):
+
 ```yaml
 steps:
   - name: Deploy
     uses: moneymeets/action-beanstalk-deploy@master
     with:
-      aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      config_path: "${{ format('configs/{0}.json', github.event.deployment.environment) }}"
+      application_name: demo-app
+      environment_name: "${{ format('demo-app-{0}', github.event.deployment.environment) }}"
+      platform_hooks_path: "${{ github.workspace }}/beanstalk-platform-hooks"
+      region: eu-central-1
 ```
 
 With full list of parameters:
+
 ```yaml
 steps:
   - name: Deploy
     uses: moneymeets/action-beanstalk-deploy@master
     with:
-      aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      config_path: "${{ format('configs/{0}.json', github.event.deployment.environment) }}"
-      aws_region: eu-central-1
-      version_label: CustomVersionLabel
-      version_description: CustomVersionDescription
-      base_path: ${{ github.workspace }}
-      wait_for_deployment: false
+      application_name: demo-app
+      docker_compose_path: "${{ github.workspace }}/docker/docker-compose.yml"
+      environment_name: "${{ format('demo-app-{0}', github.event.deployment.environment) }}"
+      platform_hooks_path: "${{ github.workspace }}/beanstalk-platform-hooks"
+      region: eu-central-1
+      version_label: ${{ github.sha }}
+      version_description: "GitHub Action #${{ github.run_number }}"
+
 ```
 
 # Local testing
-You can test the action python script, by settings the necessary environment variables.
-The local image will be built with a suffix `-ci`.
-
 Make sure that valid AWS credentials are exported into your profile, or located in `~/.aws/credentials` file.
 
 ```bash
+export APPLICATION_NAME=demo-app
+export ENVIRONMENT_NAME=demo-app-dev
+export PLATFORM_HOOKS_PATH=beanstalk-platform-hooks
+export REGION=eu-central-1
 export VERSION_LABEL=SampleVersionLabel
 export VERSION_DESCRIPTION=SampleVersionDescription
-export BASE_PATH=../sample-application
-export CONFIG_PATH=../sample-application/.config/dev.json
-export WAIT_FOR_DEPLOYMENT=false
+export DOCKER_COMPOSE_PATH=docker/docker-compose.yml
+export PYTHONUNBUFFERED="1"
 
-python action.py
+poetry run python action.py
 ```

@@ -2,62 +2,50 @@ name: "Deploy Beanstalk application"
 author: "Marcel Arns <marcel.arns@moneymeets.com>"
 description: "Create Beanstalk application version and update environment"
 inputs:
-  aws_access_key_id:
-    description: "AWS access key"
+  application_name:
     required: true
-  aws_secret_access_key:
-    description: "AWS secret access key"
-    required: true
-  aws_region:
-    description: "AWS region"
+    description: "Name of the beanstalk application"
+  docker_compose_path:
     required: false
-    default: "eu-central-1"
+    description: "Path to docker-compose.yml"
+    default: "${{ github.workspace }}/docker/docker-compose.yml"
+  environment_name:
+    required: true
+    description: "Beanstalk environment name"
+  platform_hooks_path:
+    required: false
+    description: "Path to hooks directory, which can contain .ebextensions and/or .platform folder"
+  region:
+    required: true
+    description: "Region of the Beanstalk platform"
   version_label:
-    description: "Version label (default: github.sha)"
     required: false
+    description: "Version label (default: github.sha)"
     default: ${{ github.sha }}
   version_description:
+    required: false
     description: "Version description (default: github.run_number)"
-    required: false
     default: "GitHub Action #${{ github.run_number }}"
-  build_and_upload_image:
-    description: "Build and upload the docker image"
-    required: true
-  wait_for_deployment:
-    description: "Whether the action should wait for the deployment to finish and log status messages during wait"
-    required: false
-    default: "true"
-  base_path:
-    description: "Base path"
-    required: false
-    default: ${{ github.workspace }}
-  config_path:
-    description: "Config path"
-    required: true
 
 runs:
   using: "composite"
   steps:
-    - name: Setup Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.10'
+    - name: Setup Python + Poetry
+      uses: moneymeets/action-setup-python-poetry@master
 
     - name: Run
       run: |
-        pip install -r ${{ github.action_path }}/requirements.txt
-        python3 -m action
+        poetry install --no-dev
+        poetry run python action.py
       shell: bash
+      working-directory: ${{ github.action_path }}
       env:
-        PYTHONPATH: ${{ github.action_path }}
-
-        AWS_ACCESS_KEY_ID: ${{ inputs.aws_access_key_id }}
-        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_access_key }}
-        AWS_DEFAULT_REGION: ${{ inputs.aws_region }}
-
-        VERSION_LABEL: ${{ inputs.version_label }}
+        APPLICATION_NAME: ${{ inputs.application_name }}
+        DOCKER_COMPOSE_PATH: ${{ inputs.docker_compose_path }}
+        ENVIRONMENT_NAME: ${{ inputs.environment_name }}
+        PLATFORM_HOOKS_PATH: ${{ inputs.platform_hooks_path }}
+        REGION: ${{ inputs.region }}
         VERSION_DESCRIPTION: ${{ inputs.version_description }}
-        WAIT_FOR_DEPLOYMENT: ${{ inputs.wait_for_deployment }}
-        BASE_PATH: ${{ inputs.base_path }}
+        VERSION_LABEL: ${{ inputs.version_label }}
 
-        CONFIG_PATH: ${{ inputs.config_path }}
+        PYTHONUNBUFFERED: "1"
