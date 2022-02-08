@@ -32,6 +32,7 @@ profile = "black"
 line_length = 120
 
 [tool.coverage.run]
+branch = true
 omit = ["test_*.py"]
 
 [build-system]
