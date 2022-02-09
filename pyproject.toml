@@ -33,6 +33,7 @@ line_length = 120
 
 [tool.coverage.run]
 branch = true
+source = ["."]
 omit = ["test_*.py"]
 
 [build-system]
