@@ -20,7 +20,7 @@ class Config:
     description: str
     docker_compose_path: Path
     environment_name: str
-    platform_hooks_path: Path
+    platform_hooks_path: Optional[Path]
     region: str
     version_label: str
 
@@ -278,7 +278,7 @@ if __name__ == "__main__":
             description=os.environ["VERSION_DESCRIPTION"],
             docker_compose_path=Path(os.environ["DOCKER_COMPOSE_PATH"]),
             environment_name=os.environ["ENVIRONMENT_NAME"],
-            platform_hooks_path=Path(os.environ["PLATFORM_HOOKS_PATH"]),
+            platform_hooks_path=Path(os.environ["PLATFORM_HOOKS_PATH"]) if os.environ["PLATFORM_HOOKS_PATH"] else None,
             region=os.environ["REGION"],
             version_label=os.environ["VERSION_LABEL"],
         ),
