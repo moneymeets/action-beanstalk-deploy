@@ -43,7 +43,9 @@ steps:
       application_name: demo-app
       environment_name: "${{ format('demo-app-{0}', github.event.deployment.environment) }}"
       platform_hooks_path: "${{ github.workspace }}/beanstalk-platform-hooks"
-      region: eu-central-1
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
 With full list of parameters:
@@ -57,10 +59,12 @@ steps:
       docker_compose_path: "${{ github.workspace }}/docker/docker-compose.yml"
       environment_name: "${{ format('demo-app-{0}', github.event.deployment.environment) }}"
       platform_hooks_path: "${{ github.workspace }}/beanstalk-platform-hooks"
-      region: eu-central-1
       version_label: ${{ github.sha }}
       version_description: "GitHub Action #${{ github.run_number }}"
-
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: us-east-1
 ```
 
 # Local testing
@@ -70,7 +74,6 @@ Make sure that valid AWS credentials are exported into your profile, or located 
 export APPLICATION_NAME=demo-app
 export ENVIRONMENT_NAME=demo-app-dev
 export PLATFORM_HOOKS_PATH=beanstalk-platform-hooks
-export REGION=eu-central-1
 export VERSION_LABEL=SampleVersionLabel
 export VERSION_DESCRIPTION=SampleVersionDescription
 export DOCKER_COMPOSE_PATH=docker/docker-compose.yml

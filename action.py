@@ -255,7 +255,33 @@ def get_or_create_beanstalk_application_version(
     )
 
 
-def main(config: Config):
+def check_aws_credentials():
+    aws_credential_variables = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
+    if not all(variable in os.environ for variable in aws_credential_variables):
+        raise ValueError(f"AWS credentials not configured ({', '.join(aws_credential_variables)})")
+
+
+def get_region() -> str:
+    region_variables = ("AWS_REGION", "AWS_DEFAULT_REGION")
+    for region_var in region_variables:
+        if region := os.environ.get(region_var):
+            return region
+
+    raise ValueError(f"AWS region not configured, set one of ({', '.join(region_variables)})")
+
+
+def main():
+    check_aws_credentials()
+    config = Config(
+        application_name=os.environ["APPLICATION_NAME"],
+        description=os.environ["VERSION_DESCRIPTION"],
+        docker_compose_path=Path(os.environ["DOCKER_COMPOSE_PATH"]),
+        environment_name=os.environ["ENVIRONMENT_NAME"],
+        platform_hooks_path=Path(os.environ["PLATFORM_HOOKS_PATH"]) if os.environ["PLATFORM_HOOKS_PATH"] else None,
+        region=get_region(),
+        version_label=os.environ["VERSION_LABEL"],
+    )
+
     application = BeanstalkApplication(config.application_name)
     environment = BeanstalkEnvironment(application, config.environment_name)
 
@@ -272,14 +298,4 @@ if __name__ == "__main__":
     )
     logger = logging.getLogger(__file__)
 
-    main(
-        Config(
-            application_name=os.environ["APPLICATION_NAME"],
-            description=os.environ["VERSION_DESCRIPTION"],
-            docker_compose_path=Path(os.environ["DOCKER_COMPOSE_PATH"]),
-            environment_name=os.environ["ENVIRONMENT_NAME"],
-            platform_hooks_path=Path(os.environ["PLATFORM_HOOKS_PATH"]) if os.environ["PLATFORM_HOOKS_PATH"] else None,
-            region=os.environ["REGION"],
-            version_label=os.environ["VERSION_LABEL"],
-        ),
-    )
+    main()

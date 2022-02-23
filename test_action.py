@@ -1,3 +1,4 @@
+import os
 from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,6 +22,23 @@ MOCK_APPLICATION = action.BeanstalkApplication(MOCK_CONFIG.application_name)
 MOCK_ENVIRONMENT = action.BeanstalkEnvironment(MOCK_APPLICATION, MOCK_CONFIG.environment_name)
 MOCK_APPLICATION_VERSION = action.ApplicationVersion(MOCK_APPLICATION, "version-0", "PROCESSED")
 MOCK_TIME = datetime.utcnow()
+
+
+class TestUtils(TestCase):
+    def test_check_aws_credentials(self):
+        with patch.dict(os.environ, {"AWS_ACCESS_KEY_ID": "fake", "AWS_SECRET_ACCESS_KEY": "fake"}):
+            action.check_aws_credentials()
+
+        with self.assertRaises(ValueError):
+            action.check_aws_credentials()
+
+    def test_get_region(self):
+        for variable in ("AWS_REGION", "AWS_DEFAULT_REGION"):
+            with patch.dict(os.environ, {variable: "us-east-1"}):
+                self.assertEqual(action.get_region(), "us-east-1")
+
+        with self.assertRaises(ValueError):
+            action.get_region()
 
 
 class TestApplicationVersion(TestCase):
