@@ -15,9 +15,6 @@ inputs:
   platform_hooks_path:
     required: false
     description: "Path to hooks directory, which can contain .ebextensions and/or .platform folder"
-  region:
-    required: true
-    description: "Region of the Beanstalk platform"
   version_label:
     required: false
     description: "Version label (default: github.sha)"
@@ -40,11 +37,11 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       env:
+        AWS_DEFAULT_REGION: eu-central-1
         APPLICATION_NAME: ${{ inputs.application_name }}
         DOCKER_COMPOSE_PATH: ${{ inputs.docker_compose_path }}
         ENVIRONMENT_NAME: ${{ inputs.environment_name }}
         PLATFORM_HOOKS_PATH: ${{ inputs.platform_hooks_path }}
-        REGION: ${{ inputs.region }}
         VERSION_DESCRIPTION: ${{ inputs.version_description }}
         VERSION_LABEL: ${{ inputs.version_label }}
 
