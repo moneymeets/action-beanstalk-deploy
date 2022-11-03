@@ -86,7 +86,7 @@ class TestApplicationVersion(TestCase):
 
 
 class TestDeployment(TestCase):
-    def _deploy(self, get_health_return_values: Sequence[dict], is_active_in_environment: bool):
+    def _deploy(self, get_health_return_values: Sequence[dict], is_active_in_environment: Sequence[bool]):
         with patch.object(
             action.BeanstalkEnvironment,
             "get_health",
@@ -98,7 +98,7 @@ class TestDeployment(TestCase):
         ) as mock_get_events, patch.object(
             action.ApplicationVersion,
             "is_active_in_environment",
-            return_value=is_active_in_environment,
+            side_effect=is_active_in_environment,
         ) as mock_is_active_in_environment, patch.object(
             action,
             "boto3",
@@ -113,7 +113,8 @@ class TestDeployment(TestCase):
 
             self.assertEqual(mock_get_health.call_count, iterations)
             self.assertEqual(mock_get_events.call_count, iterations)
-            mock_is_active_in_environment.assert_called_once()
+            mock_is_active_in_environment.assert_called_with(MOCK_ENVIRONMENT)
+            self.assertEqual(mock_is_active_in_environment.call_count, len(is_active_in_environment))
 
     def test_successful_deployment(self):
         self._deploy(
@@ -121,17 +122,26 @@ class TestDeployment(TestCase):
                 {"Status": "InProgress", "Color": "Grey"},
                 {"Status": "Ready", "Color": "Green"},
             ),
-            True,
+            (False, True),
         )
 
     def test_environment_timeout_error(self, *_):
         with self.assertRaises(TimeoutError):
-            self._deploy(({"Status": "InProgress", "Color": "Grey"},) * 5, True)
+            self._deploy(({"Status": "InProgress", "Color": "Grey"},) * 5, (False, True))
 
     def test_health_failed(self):
         with self.assertRaises(RuntimeError):
-            self._deploy(({"Status": "Ready", "Color": "Red"},), True)
+            self._deploy(({"Status": "Ready", "Color": "Red"},), (False, True))
 
     def test_version_not_active(self):
         with self.assertRaises(RuntimeError):
-            self._deploy(({"Status": "Ready", "Color": "Green"},), False)
+            self._deploy(({"Status": "Ready", "Color": "Green"},), (False, False))
+
+    def test_version_already_active(self):
+        version_label = MOCK_APPLICATION_VERSION.version_label
+        with self.assertLogs() as captured:
+            self._deploy((), (True,))
+            self.assertEqual(
+                captured.records[0].getMessage(),
+                f"{version_label} already active in {MOCK_CONFIG.environment_name}, skip update!",
+            )
