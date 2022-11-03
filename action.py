@@ -208,6 +208,10 @@ class ApplicationVersion:
     ):
         assert environment.application == self.application
 
+        if self.is_active_in_environment(environment):
+            logging.info(f"{self.version_label} already active in {environment.name}, skip update!")
+            return
+
         boto3.client("elasticbeanstalk").update_environment(
             ApplicationName=self.application.name,
             EnvironmentName=environment.name,

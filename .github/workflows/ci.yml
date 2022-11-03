@@ -13,4 +13,4 @@ jobs:
 
       - uses: moneymeets/moneymeets-composite-actions/lint-python@master
 
-      - run: poetry run pytest --cov --cov-fail-under=84
+      - run: poetry run pytest --cov --cov-fail-under=85
