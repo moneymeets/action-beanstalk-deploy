@@ -27,13 +27,11 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Python + Poetry
-      uses: moneymeets/action-setup-python-poetry@master
+    - uses: moneymeets/action-setup-python-poetry@master
+      with:
+        working_directory: ${{ github.action_path }}
 
-    - name: Run
-      run: |
-        poetry install --no-dev
-        poetry run python action.py
+    - run: poetry run python action.py
       shell: bash
       working-directory: ${{ github.action_path }}
       env:
