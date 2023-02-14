@@ -5,7 +5,7 @@ description = ""
 authors = ["moneymeets <admin@moneymeets.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 
 boto3 = "*"
 dataclasses-json = "*"
@@ -25,7 +25,7 @@ isort = {extras = ["pyproject"], version = "*"}
 
 [tool.black]
 line-length = 120
-target-version = ["py310"]
+target-version = ["py311"]
 
 [tool.isort]
 profile = "black"
