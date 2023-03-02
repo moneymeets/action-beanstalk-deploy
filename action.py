@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional, Self, Sequence
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import boto3
@@ -102,7 +102,7 @@ class DeploymentArchive:
         version_label: str,
         bucket_name: str,
         bucket_key: str,
-    ) -> "DeploymentArchive":
+    ) -> Self:
         def create_zip() -> bytes:
             output_data = BytesIO()
             with ZipFile(output_data, "w", compression=ZIP_DEFLATED) as archive:
@@ -133,7 +133,7 @@ class ApplicationVersion:
     status: str
 
     @classmethod
-    def get(cls, application: BeanstalkApplication, version_label: str) -> Optional["ApplicationVersion"]:
+    def get(cls, application: BeanstalkApplication, version_label: str) -> Optional[Self]:
         versions = boto3.client("elasticbeanstalk").describe_application_versions(
             ApplicationName=application.name,
             VersionLabels=[version_label],
