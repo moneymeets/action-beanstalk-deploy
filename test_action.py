@@ -1,6 +1,6 @@
 import os
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Optional, Sequence
@@ -21,7 +21,7 @@ MOCK_CONFIG = action.Config(
 MOCK_APPLICATION = action.BeanstalkApplication(MOCK_CONFIG.application_name)
 MOCK_ENVIRONMENT = action.BeanstalkEnvironment(MOCK_APPLICATION, MOCK_CONFIG.environment_name)
 MOCK_APPLICATION_VERSION = action.ApplicationVersion(MOCK_APPLICATION, "version-0", "PROCESSED")
-MOCK_TIME = datetime.utcnow()
+MOCK_TIME = datetime.now(tz=UTC)
 
 
 class TestUtils(TestCase):
