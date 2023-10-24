@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from typing import Optional, Self, Sequence
@@ -218,7 +218,7 @@ class ApplicationVersion:
             VersionLabel=self.version_label,
         )
 
-        start_time = datetime.utcnow()
+        start_time = datetime.now(tz=UTC)
         health = environment.wait_for_update_is_ready_and_get_health(
             start_time,
             polling_max_steps=polling_max_steps,
