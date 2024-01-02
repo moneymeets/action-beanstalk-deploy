@@ -46,7 +46,13 @@ class BeanstalkEnvironment:
     def get_health(self) -> dict:
         return boto3.client("elasticbeanstalk").describe_environment_health(
             EnvironmentName=self.name,
-            AttributeNames=["HealthStatus", "InstancesHealth", "Causes", "Color", "Status"],
+            AttributeNames=[
+                "HealthStatus",
+                "InstancesHealth",
+                "Causes",
+                "Color",
+                "Status",
+            ],
         )
 
     def get_events(self, last_event_time: datetime) -> Sequence[dict]:
@@ -72,7 +78,9 @@ class BeanstalkEnvironment:
             events = self.get_events(last_event_time)
             health = self.get_health()
 
-            logging.info(f"Step {step + 1} of {polling_max_steps}. Status is {health['Status']}")
+            logging.info(
+                f"Step {step + 1} of {polling_max_steps}. Status is {health['Status']}",
+            )
 
             # Log all events in order they occur beginning at the last event time
             for event in events:
@@ -108,20 +116,34 @@ class DeploymentArchive:
             with ZipFile(output_data, "w", compression=ZIP_DEFLATED) as archive:
                 archive.writestr(
                     "docker-compose.yml",
-                    docker_compose_path.read_text().replace("${IMAGE_TAG}", version_label),
+                    docker_compose_path.read_text().replace(
+                        "${IMAGE_TAG}", version_label,
+                    ),
                 )
                 if platform_hooks_path is not None:
-                    for file in filter(lambda path: path.is_file(), platform_hooks_path.glob("**/*")):
-                        archive.write(file, arcname=file.relative_to(platform_hooks_path))
+                    for file in filter(
+                        lambda path: path.is_file(), platform_hooks_path.glob("**/*"),
+                    ):
+                        archive.write(
+                            file, arcname=file.relative_to(platform_hooks_path),
+                        )
 
             logging.info("Deployment archive created")
             output_data.seek(0)
             return output_data.getvalue()
 
         def upload_zip(content: bytes) -> DeploymentArchive:
-            boto3.client("s3").put_object(Bucket=bucket_name, Body=content, Key=bucket_key)
-            logging.info(f"Deployment archive uploaded to s3://{bucket_name}/{bucket_key}")
-            return DeploymentArchive(version_label=version_label, bucket_name=bucket_name, bucket_key=bucket_key)
+            boto3.client("s3").put_object(
+                Bucket=bucket_name, Body=content, Key=bucket_key,
+            )
+            logging.info(
+                f"Deployment archive uploaded to s3://{bucket_name}/{bucket_key}",
+            )
+            return DeploymentArchive(
+                version_label=version_label,
+                bucket_name=bucket_name,
+                bucket_key=bucket_key,
+            )
 
         return upload_zip(create_zip())
 
@@ -133,7 +155,9 @@ class ApplicationVersion:
     status: str
 
     @classmethod
-    def get(cls, application: BeanstalkApplication, version_label: str) -> Optional[Self]:
+    def get(
+        cls, application: BeanstalkApplication, version_label: str,
+    ) -> Optional[Self]:
         versions = boto3.client("elasticbeanstalk").describe_application_versions(
             ApplicationName=application.name,
             VersionLabels=[version_label],
@@ -178,16 +202,24 @@ class ApplicationVersion:
             step = 0
             while step < polling_max_steps:
                 application_version = cls.get(application, version_label)
-                status = "UNAVAILABLE" if application_version is None else application_version.status
+                status = (
+                    "UNAVAILABLE"
+                    if application_version is None
+                    else application_version.status
+                )
 
-                logging.info(f"Step {step + 1} of {polling_max_steps}. Status is {status}")
+                logging.info(
+                    f"Step {step + 1} of {polling_max_steps}. Status is {status}",
+                )
                 if status == "PROCESSED":
                     return application_version
 
                 time.sleep(polling_interval.total_seconds())
                 step += 1
 
-            raise TimeoutError("Application Version creation not finished until timeout")
+            raise TimeoutError(
+                "Application Version creation not finished until timeout",
+            )
 
         return wait_until_created()
 
@@ -209,7 +241,9 @@ class ApplicationVersion:
         assert environment.application == self.application
 
         if self.is_active_in_environment(environment):
-            logging.info(f"{self.version_label} already active in {environment.name}, skip update!")
+            logging.info(
+                f"{self.version_label} already active in {environment.name}, skip update!",
+            )
             return
 
         boto3.client("elasticbeanstalk").update_environment(
@@ -262,7 +296,9 @@ def get_or_create_beanstalk_application_version(
 def check_aws_credentials():
     aws_credential_variables = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
     if not all(variable in os.environ for variable in aws_credential_variables):
-        raise ValueError(f"AWS credentials not configured ({', '.join(aws_credential_variables)})")
+        raise ValueError(
+            f"AWS credentials not configured ({', '.join(aws_credential_variables)})",
+        )
 
 
 def get_region() -> str:
@@ -271,7 +307,9 @@ def get_region() -> str:
         if region := os.environ.get(region_var):
             return region
 
-    raise ValueError(f"AWS region not configured, set one of ({', '.join(region_variables)})")
+    raise ValueError(
+        f"AWS region not configured, set one of ({', '.join(region_variables)})",
+    )
 
 
 def main():
@@ -281,7 +319,9 @@ def main():
         description=os.environ["VERSION_DESCRIPTION"],
         docker_compose_path=Path(os.environ["DOCKER_COMPOSE_PATH"]),
         environment_name=os.environ["ENVIRONMENT_NAME"],
-        platform_hooks_path=Path(os.environ["PLATFORM_HOOKS_PATH"]) if os.environ["PLATFORM_HOOKS_PATH"] else None,
+        platform_hooks_path=Path(os.environ["PLATFORM_HOOKS_PATH"])
+        if os.environ["PLATFORM_HOOKS_PATH"]
+        else None,
         region=get_region(),
         version_label=os.environ["VERSION_LABEL"],
     )
@@ -289,7 +329,9 @@ def main():
     application = BeanstalkApplication(config.application_name)
     environment = BeanstalkEnvironment(application, config.environment_name)
 
-    application_version = get_or_create_beanstalk_application_version(application, config)
+    application_version = get_or_create_beanstalk_application_version(
+        application, config,
+    )
 
     application_version.deploy_to_environment(environment)
 

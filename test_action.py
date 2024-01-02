@@ -19,14 +19,20 @@ MOCK_CONFIG = action.Config(
     version_label="abc123456",
 )
 MOCK_APPLICATION = action.BeanstalkApplication(MOCK_CONFIG.application_name)
-MOCK_ENVIRONMENT = action.BeanstalkEnvironment(MOCK_APPLICATION, MOCK_CONFIG.environment_name)
-MOCK_APPLICATION_VERSION = action.ApplicationVersion(MOCK_APPLICATION, "version-0", "PROCESSED")
+MOCK_ENVIRONMENT = action.BeanstalkEnvironment(
+    MOCK_APPLICATION, MOCK_CONFIG.environment_name,
+)
+MOCK_APPLICATION_VERSION = action.ApplicationVersion(
+    MOCK_APPLICATION, "version-0", "PROCESSED",
+)
 MOCK_TIME = datetime.now(tz=UTC)
 
 
 class TestUtils(TestCase):
     def test_check_aws_credentials(self):
-        with patch.dict(os.environ, {"AWS_ACCESS_KEY_ID": "fake", "AWS_SECRET_ACCESS_KEY": "fake"}):
+        with patch.dict(
+            os.environ, {"AWS_ACCESS_KEY_ID": "fake", "AWS_SECRET_ACCESS_KEY": "fake"},
+        ):
             action.check_aws_credentials()
 
         with self.assertRaises(ValueError):
@@ -42,8 +48,12 @@ class TestUtils(TestCase):
 
 
 class TestApplicationVersion(TestCase):
-    def _get_or_create_application_version(self, polling_results: Sequence[Optional[action.ApplicationVersion]]):
-        with NamedTemporaryFile() as docker_compose_file, patch.object(action, "boto3"), patch.object(
+    def _get_or_create_application_version(
+        self, polling_results: Sequence[Optional[action.ApplicationVersion]],
+    ):
+        with NamedTemporaryFile() as docker_compose_file, patch.object(
+            action, "boto3",
+        ), patch.object(
             action.ApplicationVersion,
             "get",
             side_effect=polling_results,
@@ -57,12 +67,16 @@ class TestApplicationVersion(TestCase):
                 polling_interval=timedelta(0),
                 polling_max_steps=len(polling_results) - 1,
             )
-            self.assertEqual(mock_get_application_version.call_count, len(polling_results))
+            self.assertEqual(
+                mock_get_application_version.call_count, len(polling_results),
+            )
             return result
 
     def test_version_exists(self):
         with self.assertLogs() as captured:
-            result = self._get_or_create_application_version((MOCK_APPLICATION_VERSION,))
+            result = self._get_or_create_application_version(
+                (MOCK_APPLICATION_VERSION,),
+            )
             self.assertEqual(result, MOCK_APPLICATION_VERSION)
             self.assertEqual(
                 captured.records[0].getMessage(),
@@ -86,7 +100,11 @@ class TestApplicationVersion(TestCase):
 
 
 class TestDeployment(TestCase):
-    def _deploy(self, get_health_return_values: Sequence[dict], is_active_in_environment: Sequence[bool]):
+    def _deploy(
+        self,
+        get_health_return_values: Sequence[dict],
+        is_active_in_environment: Sequence[bool],
+    ):
         with patch.object(
             action.BeanstalkEnvironment,
             "get_health",
@@ -114,7 +132,9 @@ class TestDeployment(TestCase):
             self.assertEqual(mock_get_health.call_count, iterations)
             self.assertEqual(mock_get_events.call_count, iterations)
             mock_is_active_in_environment.assert_called_with(MOCK_ENVIRONMENT)
-            self.assertEqual(mock_is_active_in_environment.call_count, len(is_active_in_environment))
+            self.assertEqual(
+                mock_is_active_in_environment.call_count, len(is_active_in_environment),
+            )
 
     def test_successful_deployment(self):
         self._deploy(
@@ -127,7 +147,9 @@ class TestDeployment(TestCase):
 
     def test_environment_timeout_error(self, *_):
         with self.assertRaises(TimeoutError):
-            self._deploy(({"Status": "InProgress", "Color": "Grey"},) * 5, (False, True))
+            self._deploy(
+                ({"Status": "InProgress", "Color": "Grey"},) * 5, (False, True),
+            )
 
     def test_health_failed(self):
         with self.assertRaises(RuntimeError):
