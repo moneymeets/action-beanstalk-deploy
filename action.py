@@ -117,15 +117,18 @@ class DeploymentArchive:
                 archive.writestr(
                     "docker-compose.yml",
                     docker_compose_path.read_text().replace(
-                        "${IMAGE_TAG}", version_label,
+                        "${IMAGE_TAG}",
+                        version_label,
                     ),
                 )
                 if platform_hooks_path is not None:
                     for file in filter(
-                        lambda path: path.is_file(), platform_hooks_path.glob("**/*"),
+                        lambda path: path.is_file(),
+                        platform_hooks_path.glob("**/*"),
                     ):
                         archive.write(
-                            file, arcname=file.relative_to(platform_hooks_path),
+                            file,
+                            arcname=file.relative_to(platform_hooks_path),
                         )
 
             logging.info("Deployment archive created")
@@ -134,7 +137,9 @@ class DeploymentArchive:
 
         def upload_zip(content: bytes) -> DeploymentArchive:
             boto3.client("s3").put_object(
-                Bucket=bucket_name, Body=content, Key=bucket_key,
+                Bucket=bucket_name,
+                Body=content,
+                Key=bucket_key,
             )
             logging.info(
                 f"Deployment archive uploaded to s3://{bucket_name}/{bucket_key}",
@@ -156,7 +161,9 @@ class ApplicationVersion:
 
     @classmethod
     def get(
-        cls, application: BeanstalkApplication, version_label: str,
+        cls,
+        application: BeanstalkApplication,
+        version_label: str,
     ) -> Optional[Self]:
         versions = boto3.client("elasticbeanstalk").describe_application_versions(
             ApplicationName=application.name,
@@ -202,11 +209,7 @@ class ApplicationVersion:
             step = 0
             while step < polling_max_steps:
                 application_version = cls.get(application, version_label)
-                status = (
-                    "UNAVAILABLE"
-                    if application_version is None
-                    else application_version.status
-                )
+                status = "UNAVAILABLE" if application_version is None else application_version.status
 
                 logging.info(
                     f"Step {step + 1} of {polling_max_steps}. Status is {status}",
@@ -319,9 +322,7 @@ def main():
         description=os.environ["VERSION_DESCRIPTION"],
         docker_compose_path=Path(os.environ["DOCKER_COMPOSE_PATH"]),
         environment_name=os.environ["ENVIRONMENT_NAME"],
-        platform_hooks_path=Path(os.environ["PLATFORM_HOOKS_PATH"])
-        if os.environ["PLATFORM_HOOKS_PATH"]
-        else None,
+        platform_hooks_path=Path(os.environ["PLATFORM_HOOKS_PATH"]) if os.environ["PLATFORM_HOOKS_PATH"] else None,
         region=get_region(),
         version_label=os.environ["VERSION_LABEL"],
     )
@@ -330,7 +331,8 @@ def main():
     environment = BeanstalkEnvironment(application, config.environment_name)
 
     application_version = get_or_create_beanstalk_application_version(
-        application, config,
+        application,
+        config,
     )
 
     application_version.deploy_to_environment(environment)

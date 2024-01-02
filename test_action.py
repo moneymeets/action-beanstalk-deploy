@@ -20,10 +20,13 @@ MOCK_CONFIG = action.Config(
 )
 MOCK_APPLICATION = action.BeanstalkApplication(MOCK_CONFIG.application_name)
 MOCK_ENVIRONMENT = action.BeanstalkEnvironment(
-    MOCK_APPLICATION, MOCK_CONFIG.environment_name,
+    MOCK_APPLICATION,
+    MOCK_CONFIG.environment_name,
 )
 MOCK_APPLICATION_VERSION = action.ApplicationVersion(
-    MOCK_APPLICATION, "version-0", "PROCESSED",
+    MOCK_APPLICATION,
+    "version-0",
+    "PROCESSED",
 )
 MOCK_TIME = datetime.now(tz=UTC)
 
@@ -31,7 +34,8 @@ MOCK_TIME = datetime.now(tz=UTC)
 class TestUtils(TestCase):
     def test_check_aws_credentials(self):
         with patch.dict(
-            os.environ, {"AWS_ACCESS_KEY_ID": "fake", "AWS_SECRET_ACCESS_KEY": "fake"},
+            os.environ,
+            {"AWS_ACCESS_KEY_ID": "fake", "AWS_SECRET_ACCESS_KEY": "fake"},
         ):
             action.check_aws_credentials()
 
@@ -49,10 +53,12 @@ class TestUtils(TestCase):
 
 class TestApplicationVersion(TestCase):
     def _get_or_create_application_version(
-        self, polling_results: Sequence[Optional[action.ApplicationVersion]],
+        self,
+        polling_results: Sequence[Optional[action.ApplicationVersion]],
     ):
         with NamedTemporaryFile() as docker_compose_file, patch.object(
-            action, "boto3",
+            action,
+            "boto3",
         ), patch.object(
             action.ApplicationVersion,
             "get",
@@ -68,7 +74,8 @@ class TestApplicationVersion(TestCase):
                 polling_max_steps=len(polling_results) - 1,
             )
             self.assertEqual(
-                mock_get_application_version.call_count, len(polling_results),
+                mock_get_application_version.call_count,
+                len(polling_results),
             )
             return result
 
@@ -133,7 +140,8 @@ class TestDeployment(TestCase):
             self.assertEqual(mock_get_events.call_count, iterations)
             mock_is_active_in_environment.assert_called_with(MOCK_ENVIRONMENT)
             self.assertEqual(
-                mock_is_active_in_environment.call_count, len(is_active_in_environment),
+                mock_is_active_in_environment.call_count,
+                len(is_active_in_environment),
             )
 
     def test_successful_deployment(self):
@@ -148,7 +156,8 @@ class TestDeployment(TestCase):
     def test_environment_timeout_error(self, *_):
         with self.assertRaises(TimeoutError):
             self._deploy(
-                ({"Status": "InProgress", "Color": "Grey"},) * 5, (False, True),
+                ({"Status": "InProgress", "Color": "Grey"},) * 5,
+                (False, True),
             )
 
     def test_health_failed(self):
