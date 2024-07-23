@@ -43,11 +43,15 @@ class TestUtils(TestCase):
 
 class TestApplicationVersion(TestCase):
     def _get_or_create_application_version(self, polling_results: Sequence[Optional[action.ApplicationVersion]]):
-        with NamedTemporaryFile() as docker_compose_file, patch.object(action, "boto3"), patch.object(
-            action.ApplicationVersion,
-            "get",
-            side_effect=polling_results,
-        ) as mock_get_application_version:
+        with (
+            NamedTemporaryFile() as docker_compose_file,
+            patch.object(action, "boto3"),
+            patch.object(
+                action.ApplicationVersion,
+                "get",
+                side_effect=polling_results,
+            ) as mock_get_application_version,
+        ):
             result = action.get_or_create_beanstalk_application_version(
                 MOCK_APPLICATION,
                 replace(
@@ -87,21 +91,26 @@ class TestApplicationVersion(TestCase):
 
 class TestDeployment(TestCase):
     def _deploy(self, get_health_return_values: Sequence[dict], is_active_in_environment: Sequence[bool]):
-        with patch.object(
-            action.BeanstalkEnvironment,
-            "get_health",
-            side_effect=get_health_return_values,
-        ) as mock_get_health, patch.object(
-            action.BeanstalkEnvironment,
-            "get_events",
-            return_value=(),
-        ) as mock_get_events, patch.object(
-            action.ApplicationVersion,
-            "is_active_in_environment",
-            side_effect=is_active_in_environment,
-        ) as mock_is_active_in_environment, patch.object(
-            action,
-            "boto3",
+        with (
+            patch.object(
+                action.BeanstalkEnvironment,
+                "get_health",
+                side_effect=get_health_return_values,
+            ) as mock_get_health,
+            patch.object(
+                action.BeanstalkEnvironment,
+                "get_events",
+                return_value=(),
+            ) as mock_get_events,
+            patch.object(
+                action.ApplicationVersion,
+                "is_active_in_environment",
+                side_effect=is_active_in_environment,
+            ) as mock_is_active_in_environment,
+            patch.object(
+                action,
+                "boto3",
+            ),
         ):
             iterations = len(get_health_return_values)
 
