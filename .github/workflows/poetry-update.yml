@@ -1,0 +1,28 @@
+# This file was added by Pulumi and should not be edited manually. To edit the contents of this file, please go
+# to the github-management project in moneymeets-pulumi and call `pulumi up` after changing the template file.
+
+name: Poetry update
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '* 09 01 * *' # Every month at 9am.
+
+jobs:
+  poetry-update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write  # Allow creation of separate branch and push to it
+      pull-requests: write  # Allow creation of PRs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for check if dependencies update branch already exists
+          # Allows to use git operations such as git push on the repository
+          ssh-key: '${{ secrets.WORKFLOW_DEPLOY_KEY }}'
+
+      - uses: moneymeets/action-poetry-update@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
