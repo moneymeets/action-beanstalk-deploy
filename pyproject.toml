@@ -10,11 +10,14 @@ python = "~3.12"
 boto3 = "*"
 dataclasses-json = "*"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "*"
 pytest-cov = "*"
 
 ruff = "*"
+
+[tool.poetry.scripts]
+action_beanstalk_deploy_runner = 'action_beanstalk_deploy.action:run'
 
 [tool.coverage.run]
 branch = true

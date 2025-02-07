@@ -294,12 +294,11 @@ def main():
     application_version.deploy_to_environment(environment)
 
 
-if __name__ == "__main__":
+def run():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
-    logger = logging.getLogger(__file__)
 
     main()
