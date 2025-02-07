@@ -7,7 +7,7 @@ from typing import Optional, Sequence
 from unittest import TestCase
 from unittest.mock import patch
 
-import action
+from action_beanstalk_deploy import action
 
 MOCK_CONFIG = action.Config(
     application_name="demo-app",
