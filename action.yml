@@ -34,7 +34,7 @@ runs:
         # ToDo: Re-enable cache when https://github.com/actions/setup-python/issues/361 is fixed
         poetry_cache_enabled: 'false'
 
-    - run: poetry run python action.py
+    - run: poetry run action_beanstalk_deploy_runner
       shell: bash
       working-directory: ${{ github.action_path }}
       env:

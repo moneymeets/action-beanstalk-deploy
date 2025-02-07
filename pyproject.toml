@@ -16,6 +16,9 @@ pytest-cov = "*"
 
 ruff = "*"
 
+[tool.poetry.scripts]
+action_beanstalk_deploy_runner = 'action_beanstalk_deploy.action:run'
+
 [tool.coverage.run]
 branch = true
 source = ["."]
