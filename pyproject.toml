@@ -10,7 +10,7 @@ python = "~3.12"
 boto3 = "*"
 dataclasses-json = "*"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "*"
 pytest-cov = "*"
 
