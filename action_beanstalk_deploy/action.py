@@ -300,6 +300,5 @@ def run():
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
-    logger = logging.getLogger(__file__)
 
     main()
