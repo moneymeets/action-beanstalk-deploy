@@ -1,0 +1,53 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "configMigration": true,
+  "dependencyDashboard": true,
+  "separateMajorMinor": false,
+  "ignoreDeps": [
+    "python"
+  ],
+  "ignorePaths": [
+    ".github/workflows/merge-checks.yml",
+    ".github/workflows/rebase.yml"
+  ],
+  "branchPrefix": "feature/renovate/",
+  "packageRules": [
+    {
+      "groupName": "all",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "groupName": "workflow dependencies",
+      "matchDatasources": [
+        "github-runners",
+        "github-releases",
+        "github-tags"
+      ],
+      "semanticCommitScope": "actions",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "groupName": "python dependencies",
+      "enabled": false,
+      "matchDatasources": [
+        "pypi"
+      ],
+      "semanticCommitScope": "poetry",
+      "matchPackageNames": [
+        "*"
+      ]
+    }
+  ],
+  "timezone": "Europe/Berlin",
+  "schedule": [
+    "after 9pm on sunday"
+  ]
+}
