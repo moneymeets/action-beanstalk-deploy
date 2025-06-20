@@ -12,7 +12,8 @@
   ],
   "ignorePaths": [
     ".github/workflows/merge-checks.yml",
-    ".github/workflows/rebase.yml"
+    ".github/workflows/rebase.yml",
+    ".github/workflows/poetry-update.yml"
   ],
   "branchPrefix": "feature/renovate/",
   "packageRules": [
