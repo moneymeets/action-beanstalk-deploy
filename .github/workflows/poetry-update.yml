@@ -16,7 +16,7 @@ jobs:
       contents: write  # Allow creation of separate branch and push to it
       pull-requests: write  # Allow creation of PRs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0  # Needed for check if dependencies update branch already exists
           # Allows to use git operations such as git push on the repository
