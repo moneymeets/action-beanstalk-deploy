@@ -1,8 +1,14 @@
-[tool.poetry]
+[project]
 name = "action-beanstalk-deploy"
 version = "0.1.0"
-description = ""
-authors = ["moneymeets <admin@moneymeets.com>"]
+authors = [
+    { name = "moneymeets GmbH", email = "service@moneymeets.com" },
+]
+readme = "README.md"
+requires-python = "~=3.14.0"
+
+[project.scripts]
+action_beanstalk_deploy_runner = 'action_beanstalk_deploy.action:run'
 
 [tool.poetry.dependencies]
 python = "~=3.14.0"
@@ -15,9 +21,6 @@ pytest = "*"
 pytest-cov = "*"
 
 ruff = "*"
-
-[tool.poetry.scripts]
-action_beanstalk_deploy_runner = 'action_beanstalk_deploy.action:run'
 
 [tool.coverage.run]
 branch = true
