@@ -7,9 +7,7 @@
   "configMigration": false,
   "dependencyDashboard": true,
   "separateMajorMinor": false,
-  "ignoreDeps": [
-    "python"
-  ],
+  "ignoreDeps": [],
   "ignorePaths": [
     ".github/workflows/merge-checks.yml",
     ".github/workflows/rebase.yml",
@@ -38,8 +36,8 @@
     {
       "groupName": "python dependencies",
       "enabled": false,
-      "matchDatasources": [
-        "pypi"
+      "matchManagers": [
+        "poetry"
       ],
       "semanticCommitScope": "poetry",
       "matchPackageNames": [
